@@ -5,4 +5,5 @@ __pycache
 *.pyc
 build/
 dist/
+test_files/
 *.spec
