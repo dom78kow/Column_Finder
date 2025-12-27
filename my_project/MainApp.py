@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import pandas as pd
 import os
+#import openpyxl
 
 class XLSXMergerApp:
     def __init__(self, root):

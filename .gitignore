@@ -3,3 +3,6 @@ Source/
 Target/
 __pycache
 *.pyc
+build/
+dist/
+*.spec
