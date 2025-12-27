@@ -1,36 +1,25 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from tkinterdnd2 import DND_FILES, TkinterDnD
 import pandas as pd
 import os
 
 class XLSXMergerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("XLSM to XLSX Column Selector")
+        self.root.title("XLSM to XLSX Merger")
         self.file_list = []
-        self.columns = []
 
-        self.label = tk.Label(root, text="Przeciągnij pliki XLSM tutaj lub użyj przycisku")
+        # Stałe kolumny
+        self.columns_to_copy = ["Kod", "ProduktNazwa", "VAT", "CenaBrutto"]
+
+        self.label = tk.Label(root, text="Wybierz pliki XLSM do skopiowania")
         self.label.pack(pady=10)
-
-        self.drop_area = tk.Listbox(root, height=4)
-        self.drop_area.pack(fill=tk.X, padx=10, pady=5)
-        self.drop_area.drop_target_register(DND_FILES)
-        self.drop_area.dnd_bind('<<Drop>>', self.drop_files)
 
         self.select_button = tk.Button(root, text="Wybierz pliki XLSM", command=self.load_files)
         self.select_button.pack(pady=5)
 
-        self.column_listbox = tk.Listbox(root, selectmode=tk.MULTIPLE)
-        self.column_listbox.pack(pady=5, fill=tk.BOTH, expand=True)
-
-        self.order_frame = tk.Frame(root)
-        self.order_frame.pack(pady=5)
-        self.up_button = tk.Button(self.order_frame, text="↑", command=self.move_up)
-        self.up_button.pack(side=tk.LEFT, padx=5)
-        self.down_button = tk.Button(self.order_frame, text="↓", command=self.move_down)
-        self.down_button.pack(side=tk.LEFT, padx=5)
+        self.file_listbox = tk.Listbox(root, height=6)
+        self.file_listbox.pack(fill=tk.X, padx=10, pady=5)
 
         self.select_target_button = tk.Button(root, text="Wybierz plik docelowy XLSX", command=self.select_target_file)
         self.select_target_button.pack(pady=5)
@@ -38,26 +27,10 @@ class XLSXMergerApp:
         self.target_label = tk.Label(root, text="Plik docelowy: brak")
         self.target_label.pack(pady=5)
 
-        self.row_frame = tk.Frame(root)
-        self.row_frame.pack(pady=5)
-        tk.Label(self.row_frame, text="Wiersz startowy:").pack(side=tk.LEFT)
-        self.start_row_entry = tk.Entry(self.row_frame, width=5)
-        self.start_row_entry.pack(side=tk.LEFT)
-        self.start_row_entry.insert(0, "0")  # początkowo 0, zostanie zaktualizowane
-
-        self.merge_button = tk.Button(root, text="Kopiuj wybrane kolumny", command=self.merge_columns)
+        self.merge_button = tk.Button(root, text="Kopiuj dane", command=self.merge_columns)
         self.merge_button.pack(pady=10)
 
         self.target_file = None
-
-    def drop_files(self, event):
-        files = self.root.tk.splitlist(event.data)
-        for f in files:
-            if f.lower().endswith(".xlsm") and f not in self.file_list:
-                self.file_list.append(f)
-                self.drop_area.insert(tk.END, os.path.basename(f))
-        if self.file_list:
-            self.load_columns(self.file_list[0])
 
     def load_files(self):
         files = filedialog.askopenfilenames(filetypes=[("Excel Macro files", "*.xlsm")])
@@ -65,37 +38,7 @@ class XLSXMergerApp:
             for f in files:
                 if f not in self.file_list:
                     self.file_list.append(f)
-                    self.drop_area.insert(tk.END, os.path.basename(f))
-            self.load_columns(self.file_list[0])
-
-    def load_columns(self, file):
-        df = pd.read_excel(file, engine="openpyxl")
-        self.columns = list(df.columns)
-        self.column_listbox.delete(0, tk.END)
-        for col in self.columns:
-            self.column_listbox.insert(tk.END, col)
-
-    def move_up(self):
-        selected = list(self.column_listbox.curselection())
-        for i in selected:
-            if i == 0:
-                continue
-            value = self.column_listbox.get(i)
-            self.column_listbox.delete(i)
-            self.column_listbox.insert(i-1, value)
-            self.column_listbox.select_set(i-1)
-            self.column_listbox.select_clear(i)
-
-    def move_down(self):
-        selected = list(self.column_listbox.curselection())
-        for i in reversed(selected):
-            if i == self.column_listbox.size()-1:
-                continue
-            value = self.column_listbox.get(i)
-            self.column_listbox.delete(i)
-            self.column_listbox.insert(i+1, value)
-            self.column_listbox.select_set(i+1)
-            self.column_listbox.select_clear(i)
+                    self.file_listbox.insert(tk.END, os.path.basename(f))
 
     def select_target_file(self):
         self.target_file = filedialog.asksaveasfilename(
@@ -105,62 +48,48 @@ class XLSXMergerApp:
         )
         if self.target_file:
             self.target_label.config(text=f"Plik docelowy: {os.path.basename(self.target_file)}")
-            # automatycznie wykrywamy ostatni wiersz
-            if os.path.exists(self.target_file):
-                target_df = pd.read_excel(self.target_file, engine="openpyxl")
-                last_row = len(target_df)
-            else:
-                last_row = 0
-            self.start_row_entry.delete(0, tk.END)
-            self.start_row_entry.insert(0, str(last_row))
+
+    def validate_columns(self, df, file_path):
+        missing = [col for col in self.columns_to_copy if col not in df.columns]
+        if missing:
+            messagebox.showerror(
+                "Błąd kolumn",
+                f"Plik '{os.path.basename(file_path)}' nie zawiera wymaganych kolumn:\n{', '.join(missing)}"
+            )
+            return False
+        return True
 
     def merge_columns(self):
         if not self.file_list or not self.target_file:
             messagebox.showerror("Błąd", "Wybierz pliki źródłowe i docelowy")
             return
 
-        selected_indices = self.column_listbox.curselection()
-        selected_columns = [self.column_listbox.get(i) for i in selected_indices]
-
-        if not selected_columns:
-            messagebox.showerror("Błąd", "Nie wybrano żadnych kolumn")
-            return
-
-        # pobieramy aktualny wiersz startowy z pola
-        try:
-            start_row = int(self.start_row_entry.get())
-            if start_row < 0:
-                raise ValueError
-        except ValueError:
-            messagebox.showerror("Błąd", "Wiersz startowy musi być liczbą całkowitą >= 0")
-            return
-
         # wczytanie lub utworzenie pliku docelowego
         if os.path.exists(self.target_file):
             target_df = pd.read_excel(self.target_file, engine="openpyxl")
         else:
-            target_df = pd.DataFrame()
+            target_df = pd.DataFrame(columns=self.columns_to_copy)
+
+        # startujemy od końca
+        start_row = len(target_df)
 
         for file in self.file_list:
             df = pd.read_excel(file, engine="openpyxl")
-            df_selected = df[selected_columns]
+            if not self.validate_columns(df, file):
+                return
+            df_selected = df[self.columns_to_copy]
 
-            # jeśli start_row większy niż aktualny rozmiar, uzupełniamy pustymi wierszami
-            if start_row > len(target_df):
-                filler = pd.DataFrame(index=range(start_row - len(target_df)), columns=target_df.columns)
-                target_df = pd.concat([target_df, filler], ignore_index=True)
-
-            target_df = pd.concat([target_df.iloc[:start_row], df_selected, target_df.iloc[start_row:]], ignore_index=True)
-            start_row += len(df_selected)
+            target_df = pd.concat([target_df, df_selected], ignore_index=True)
 
         target_df.to_excel(self.target_file, index=False, engine="openpyxl")
-        messagebox.showinfo("Sukces", "Kolumny zostały skopiowane!")
-        # odświeżenie numeru wiersza startowego
-        self.start_row_entry.delete(0, tk.END)
-        self.start_row_entry.insert(0, str(len(target_df)))
+        messagebox.showinfo("Sukces", "Dane zostały skopiowane!")
+
+        # odświeżenie listy plików
+        self.file_list.clear()
+        self.file_listbox.delete(0, tk.END)
 
 if __name__ == "__main__":
-    root = TkinterDnD.Tk()
+    root = tk.Tk()
     app = XLSXMergerApp(root)
-    root.geometry("500x600")
+    root.geometry("500x350")
     root.mainloop()
